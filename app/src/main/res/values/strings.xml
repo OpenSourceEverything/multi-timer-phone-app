@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Multi Timer</string>
+    <string name="notification_channel_name">Running timers</string>
+    <string name="notification_channel_description">Keeps audible timer profiles running in the background</string>
+</resources>
