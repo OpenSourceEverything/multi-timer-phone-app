@@ -89,3 +89,40 @@ is the intended permanent package identity.
 The timing service uses the `specialUse` foreground-service type. In Play
 Console, describe its user-started background timers and audible cue schedules
 under **Policy > App content**, and provide the requested demonstration video.
+
+## Distribute one build to multiple phones through Google Play
+
+An Android App Bundle (`.aab`) is uploaded to Play; phones install the generated
+APK split set from Play. Use the same application ID and signing/upload key for
+every update, and increase `versionCode` for each uploaded bundle.
+
+For the next release, update `app/build.gradle` before building, for example:
+
+```groovy
+versionCode 3
+versionName '1.1.0'
+```
+
+Then build the signed bundle from this directory:
+
+```text
+set JAVA_HOME=C:\path\to\jdk-17
+gradlew.bat clean testDebugUnitTest lintDebug bundleRelease
+```
+
+The result is `app\build\outputs\bundle\release\app-release.aab`. Upload it in
+Play Console under **Test and release → Internal testing**, create the release,
+add release notes, review, and start the internal rollout. Do not upload the
+debug APK or a bundle signed with a different key.
+
+On each phone, open the tester opt-in link while signed into an invited Google
+account, join the test, and install the app from Google Play once. Later
+releases then appear in Play automatically when auto-update is enabled. A
+manual check is **Play Store → profile → Manage apps and device → Updates
+available**. Auto-update is controlled on each phone under **Play Store →
+profile → Settings → Network preferences → Auto-update apps**.
+
+Play does not instantly force-update every personal device: rollout eligibility,
+network settings, charging, and Play's update checks can delay installation.
+The internal-test installation must come from Play; a sideloaded debug APK is
+not enrolled in the Play update path.
