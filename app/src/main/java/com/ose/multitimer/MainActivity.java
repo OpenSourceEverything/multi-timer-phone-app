@@ -86,6 +86,7 @@ public final class MainActivity extends Activity {
     private AppUpdateManager appUpdateManager;
     private boolean updateFlowStarted;
     private boolean updateReadyDialogShown;
+    private boolean updatePostponedThisSession;
 
     private final InstallStateUpdatedListener updateListener = state -> {
         if (state.installStatus() == InstallStatus.DOWNLOADED) {
@@ -138,6 +139,7 @@ public final class MainActivity extends Activity {
                     TimingService.INTERNAL_BROADCAST_PERMISSION, null);
         }
         receiverRegistered = true;
+        updatePostponedThisSession = false;
         appUpdateManager.registerListener(updateListener);
         reloadClocks();
         if (hasRunningClock()) {
@@ -166,7 +168,7 @@ public final class MainActivity extends Activity {
     }
 
     private void checkForAppUpdate() {
-        if (appUpdateManager == null || updateFlowStarted) {
+        if (appUpdateManager == null || updateFlowStarted || updatePostponedThisSession) {
             return;
         }
         appUpdateManager.getAppUpdateInfo()
@@ -174,6 +176,9 @@ public final class MainActivity extends Activity {
     }
 
     private void handleAppUpdateInfo(AppUpdateInfo info) {
+        if (updatePostponedThisSession) {
+            return;
+        }
         if (info.installStatus() == InstallStatus.DOWNLOADED) {
             promptToCompleteUpdate();
             return;
@@ -223,12 +228,18 @@ public final class MainActivity extends Activity {
         new AlertDialog.Builder(this)
                 .setTitle("Update ready")
                 .setMessage("A newer version of Multi Timer is downloaded and ready to install.")
-                .setNegativeButton("Later", (dialog, which) -> updateReadyDialogShown = false)
+                .setNegativeButton("Later", (dialog, which) -> {
+                    updateReadyDialogShown = false;
+                    updatePostponedThisSession = true;
+                })
                 .setPositiveButton("Restart now", (dialog, which) -> {
                     updateReadyDialogShown = false;
                     appUpdateManager.completeUpdate();
                 })
-                .setOnCancelListener(dialog -> updateReadyDialogShown = false)
+                .setOnCancelListener(dialog -> {
+                    updateReadyDialogShown = false;
+                    updatePostponedThisSession = true;
+                })
                 .show();
     }
 
