@@ -10,6 +10,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
@@ -37,6 +38,15 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.android.play.core.appupdate.AppUpdateInfo;
+import com.google.android.play.core.appupdate.AppUpdateManager;
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory;
+import com.google.android.play.core.appupdate.AppUpdateOptions;
+import com.google.android.play.core.install.InstallStateUpdatedListener;
+import com.google.android.play.core.install.model.AppUpdateType;
+import com.google.android.play.core.install.model.InstallStatus;
+import com.google.android.play.core.install.model.UpdateAvailability;
+
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -50,6 +60,7 @@ import java.util.Map;
  */
 public final class MainActivity extends Activity {
     private static final int REQUEST_NOTIFICATIONS = 1001;
+    private static final int REQUEST_IN_APP_UPDATE = 1002;
     private static final long UI_TICK_MILLIS = 100L;
 
     private static final int COLOR_PAPER = Color.rgb(246, 247, 249);
@@ -72,6 +83,16 @@ public final class MainActivity extends Activity {
     private AlertDialog profilesDialog;
     private List<ClockInstance> clocks = new ArrayList<>();
     private boolean receiverRegistered;
+    private AppUpdateManager appUpdateManager;
+    private boolean updateFlowStarted;
+    private boolean updateReadyDialogShown;
+
+    private final InstallStateUpdatedListener updateListener = state -> {
+        if (state.installStatus() == InstallStatus.DOWNLOADED) {
+            updateFlowStarted = false;
+            promptToCompleteUpdate();
+        }
+    };
 
     private final Runnable uiTicker = new Runnable() {
         @Override
@@ -98,6 +119,7 @@ public final class MainActivity extends Activity {
 
         store = new AppStore(getSharedPreferences(AppStore.PREFERENCES_NAME, MODE_PRIVATE));
         store.ensureDefaultProfiles();
+        appUpdateManager = AppUpdateManagerFactory.create(this);
         setContentView(buildContent());
         requestNotificationPermissionIfNeeded();
     }
@@ -116,6 +138,7 @@ public final class MainActivity extends Activity {
                     TimingService.INTERNAL_BROADCAST_PERMISSION, null);
         }
         receiverRegistered = true;
+        appUpdateManager.registerListener(updateListener);
         reloadClocks();
         if (hasRunningClock()) {
             // Resumes the single scheduler after a process restart or force-stop/relaunch.
@@ -128,11 +151,93 @@ public final class MainActivity extends Activity {
     @Override
     protected void onStop() {
         handler.removeCallbacks(uiTicker);
+        appUpdateManager.unregisterListener(updateListener);
         if (receiverRegistered) {
             unregisterReceiver(stateReceiver);
             receiverRegistered = false;
         }
         super.onStop();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        checkForAppUpdate();
+    }
+
+    private void checkForAppUpdate() {
+        if (appUpdateManager == null || updateFlowStarted) {
+            return;
+        }
+        appUpdateManager.getAppUpdateInfo()
+                .addOnSuccessListener(this::handleAppUpdateInfo);
+    }
+
+    private void handleAppUpdateInfo(AppUpdateInfo info) {
+        if (info.installStatus() == InstallStatus.DOWNLOADED) {
+            promptToCompleteUpdate();
+            return;
+        }
+
+        if (info.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
+            // Resume an update the user already accepted before leaving the app.
+            if (info.isUpdateTypeAllowed(AppUpdateOptions.defaultOptions(AppUpdateType.IMMEDIATE))) {
+                startAppUpdate(info, AppUpdateType.IMMEDIATE);
+            } else if (info.isUpdateTypeAllowed(AppUpdateOptions.defaultOptions(AppUpdateType.FLEXIBLE))) {
+                startAppUpdate(info, AppUpdateType.FLEXIBLE);
+            }
+            return;
+        }
+
+        if (info.updateAvailability() != UpdateAvailability.UPDATE_AVAILABLE) {
+            return;
+        }
+
+        // Flexible updates keep the timer usable while Play downloads the new build.
+        if (info.isUpdateTypeAllowed(AppUpdateOptions.defaultOptions(AppUpdateType.FLEXIBLE))) {
+            startAppUpdate(info, AppUpdateType.FLEXIBLE);
+        } else if (info.isUpdateTypeAllowed(AppUpdateOptions.defaultOptions(AppUpdateType.IMMEDIATE))) {
+            startAppUpdate(info, AppUpdateType.IMMEDIATE);
+        }
+    }
+
+    private void startAppUpdate(AppUpdateInfo info, int updateType) {
+        if (updateFlowStarted || isFinishing() || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1
+                && isDestroyed())) {
+            return;
+        }
+        try {
+            updateFlowStarted = appUpdateManager.startUpdateFlowForResult(
+                    info, this, AppUpdateOptions.defaultOptions(updateType), REQUEST_IN_APP_UPDATE);
+        } catch (IntentSender.SendIntentException ignored) {
+            updateFlowStarted = false;
+        }
+    }
+
+    private void promptToCompleteUpdate() {
+        if (updateReadyDialogShown || isFinishing()
+                || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && isDestroyed())) {
+            return;
+        }
+        updateReadyDialogShown = true;
+        new AlertDialog.Builder(this)
+                .setTitle("Update ready")
+                .setMessage("A newer version of Multi Timer is downloaded and ready to install.")
+                .setNegativeButton("Later", (dialog, which) -> updateReadyDialogShown = false)
+                .setPositiveButton("Restart now", (dialog, which) -> {
+                    updateReadyDialogShown = false;
+                    appUpdateManager.completeUpdate();
+                })
+                .setOnCancelListener(dialog -> updateReadyDialogShown = false)
+                .show();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_IN_APP_UPDATE) {
+            updateFlowStarted = false;
+        }
     }
 
     private View buildContent() {

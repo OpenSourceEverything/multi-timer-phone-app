@@ -90,6 +90,15 @@ The timing service uses the `specialUse` foreground-service type. In Play
 Console, describe its user-started background timers and audible cue schedules
 under **Policy > App content**, and provide the requested demonstration video.
 
+## In-app update prompts
+
+Play-installed builds use Google Play's in-app update flow. When a newer bundle
+is available, the app asks the user to start a flexible update, downloads it in
+the background, and offers **Restart now** when installation is ready. If Play
+requires an immediate flow, the app uses that flow instead. Debug or sideloaded
+APKs do not receive this prompt because Google Play does not manage their
+updates.
+
 ## Distribute one build to multiple phones through Google Play
 
 An Android App Bundle (`.aab`) is uploaded to Play; phones install the generated
