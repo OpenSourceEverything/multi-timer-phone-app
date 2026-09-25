@@ -71,6 +71,10 @@ adb install -r .\app\build\outputs\apk\debug\app-debug.apk
 
 The application ID is `com.ose.multitimer`.
 
+The main screen displays the compiled version name and Play version code, for
+example `v1.1.1 (build 4)`. The version name is user-facing; the version code
+is Play's numeric update-order identifier.
+
 ## Build the Play bundle
 
 Release signing reads `%USERPROFILE%\.android\ose-multitimer-upload.properties`.
@@ -105,13 +109,13 @@ An Android App Bundle (`.aab`) is uploaded to Play; phones install the generated
 APK split set from Play. Use the same application ID and signing/upload key for
 every update, and increase `versionCode` for each uploaded bundle.
 
-The current source release is `versionName '1.1.0'` with `versionCode 3`. For
+The current source release is `versionName '1.1.1'` with `versionCode 4`. For
 each subsequent release, update `app/build.gradle` before building; the next
 bundle must use a higher version code, for example:
 
 ```groovy
-versionCode 4
-versionName '1.1.1'
+versionCode 5
+versionName '1.1.2'
 ```
 
 Then build the signed bundle from this directory:

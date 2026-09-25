@@ -264,8 +264,14 @@ public final class MainActivity extends Activity {
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
         TextView title = text("Multi Timer", 28, COLOR_INK, Typeface.BOLD);
+        TextView version = text("v" + BuildConfig.VERSION_NAME + " (build "
+                + BuildConfig.VERSION_CODE + ")", 12, COLOR_MUTED, Typeface.NORMAL);
+        version.setContentDescription("App version " + BuildConfig.VERSION_NAME
+                + ", build " + BuildConfig.VERSION_CODE);
         summary = text("No clocks yet", 13, COLOR_MUTED, Typeface.NORMAL);
         titles.addView(title);
+        titles.addView(version, marginParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 0, 1, 0, 0));
         titles.addView(summary, marginParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 0, 2, 0, 0));
         header.addView(titles, new LinearLayout.LayoutParams(0,

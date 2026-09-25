@@ -20,12 +20,16 @@ android {
     namespace 'com.ose.multitimer'
     compileSdk 36
 
+    buildFeatures {
+        buildConfig true
+    }
+
     defaultConfig {
         applicationId 'com.ose.multitimer'
         minSdk 26
         targetSdk 36
-        versionCode 3
-        versionName '1.1.0'
+        versionCode 4
+        versionName '1.1.1'
 
         testInstrumentationRunner 'android.test.InstrumentationTestRunner'
     }
