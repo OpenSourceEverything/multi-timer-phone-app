@@ -1,0 +1,22 @@
+{
+  "format": "com.ose.multitimer.profiles",
+  "version": 1,
+  "profiles": [
+    {
+      "name": "Every minute",
+      "mode": "PERIODIC",
+      "beepDurationMillis": 500,
+      "periodMillis": 60000,
+      "events": [],
+      "beepOnCue": true,
+      "beepOnCompletion": true,
+      "speakOnCompletion": false,
+      "speakCurrentTime": false,
+      "speakElapsedTime": false,
+      "speakRemainingTime": false,
+      "speakOnCue": true,
+      "speakClockNameWithSpeech": false,
+      "id": "local-profile-must-not-leak"
+    }
+  ]
+}

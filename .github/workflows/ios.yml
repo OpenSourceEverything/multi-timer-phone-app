@@ -1,0 +1,65 @@
+name: SwiftUI companion
+
+on:
+  push:
+    branches: [main]
+    paths: ['ios/**', 'profiles/**', '.github/workflows/ios.yml']
+  pull_request:
+    paths: ['ios/**', 'profiles/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+    inputs:
+      capture_demo:
+        description: Record the disposable simulator's actual UI workflow in the job log
+        type: boolean
+        default: false
+      runner:
+        description: Standard Mac runner
+        type: choice
+        default: macos-15
+        options: [macos-15, macos-15-intel]
+  workflow_call:
+    inputs:
+      require_exchange_input:
+        description: Fail if the Android job supplied no actual export
+        type: boolean
+        default: false
+      exchange_input:
+        description: Bounded public-example document actually exported by Android
+        type: string
+        default: ''
+    outputs:
+      profile_bundle:
+        description: Actual native system export after the SwiftUI edits
+        value: ${{ jobs.simulator.outputs.profile_bundle }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.workflow }}-${{ github.ref }}-${{ inputs.runner || 'macos-15' }}
+  cancel-in-progress: true
+
+jobs:
+  simulator:
+    # Standard public-repository compute only. Do not move this job to paid
+    # larger runners or a private repo without reviewing its billing route.
+    if: github.event.repository.private == false
+    runs-on: ${{ inputs.runner || 'macos-15' }}
+    timeout-minutes: 25
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      MULTITIMER_EXCHANGE_INPUT_BASE64: ${{ inputs.exchange_input }}
+      MULTITIMER_REQUIRE_EXCHANGE_INPUT: ${{ inputs.require_exchange_input }}
+      MULTITIMER_CAPTURE_DEMO: ${{ inputs.capture_demo || false }}
+    outputs:
+      profile_bundle: ${{ steps.tests.outputs.profile_bundle }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # No cache/artifact upload or signing identity is used by the baseline.
+      # The actual Xcode version, available runtimes and test results are logs.
+      - name: Build and test on an installed iOS simulator
+        id: tests
+        run: bash ios/MultiTimerProfiles/scripts/test.sh

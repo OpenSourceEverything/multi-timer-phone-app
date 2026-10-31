@@ -1,0 +1,27 @@
+{
+  "format": "com.ose.multitimer.profiles",
+  "version": 1,
+  "profiles": [
+    {
+      "name": "Focus – تمرين 🍵",
+      "mode": "SCRIPTED",
+      "beepDurationMillis": 500,
+      "periodMillis": 0,
+      "events": [
+        {
+          "offsetMillis": 0,
+          "speechText": null,
+          "beepDurationMillis": 0
+        }
+      ],
+      "beepOnCue": true,
+      "beepOnCompletion": true,
+      "speakOnCompletion": false,
+      "speakCurrentTime": false,
+      "speakElapsedTime": false,
+      "speakRemainingTime": false,
+      "speakOnCue": true,
+      "speakClockNameWithSpeech": true
+    }
+  ]
+}

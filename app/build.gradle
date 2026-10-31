@@ -1,0 +1,105 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+def uploadSigningPropertiesFile = new File(
+        System.getProperty('user.home'), '.android/ose-multitimer-upload.properties')
+def uploadSigningProperties = new Properties()
+if (uploadSigningPropertiesFile.exists()) {
+    uploadSigningPropertiesFile.withInputStream {
+        uploadSigningProperties.load(it)
+    }
+    ['storeFile', 'storePassword', 'keyAlias', 'keyPassword'].each { propertyName ->
+        if (!uploadSigningProperties.getProperty(propertyName)) {
+            throw new GradleException("Missing ${propertyName} in ${uploadSigningPropertiesFile}")
+        }
+    }
+}
+
+android {
+    namespace 'com.ose.multitimer'
+    compileSdk 36
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    defaultConfig {
+        applicationId 'com.ose.multitimer'
+        minSdk 26
+        targetSdk 36
+        versionCode 12
+        versionName '1.6.2'
+
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+
+    signingConfigs {
+        release {
+            if (uploadSigningPropertiesFile.exists()) {
+                storeFile file(uploadSigningProperties.getProperty('storeFile'))
+                storePassword uploadSigningProperties.getProperty('storePassword')
+                keyAlias uploadSigningProperties.getProperty('keyAlias')
+                keyPassword uploadSigningProperties.getProperty('keyPassword')
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            // Test the main app package in place instead of creating a second
+            // app with a separate timer/profile database. Install with `adb
+            // install -r` and the same signing key; a Play-signed app cannot
+            // be updated by this debug certificate.
+            versionNameSuffix '-debug'
+            resValue 'string', 'app_name', 'Multi Timer'
+        }
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // Keep the platform-neutral interchange corpus in the repository's shared
+    // profiles directory; tests consume it directly instead of a copied tree.
+    sourceSets {
+        androidTest.assets.srcDir(rootProject.file('profiles'))
+    }
+
+    testOptions {
+        unitTests.all { testTask ->
+            testTask.systemProperty(
+                    'profileFixturesDir',
+                    rootProject.file('profiles/fixtures/v1').absolutePath)
+        }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        // Mixed Java/Kotlin sources must emit the same bytecode target. The
+        // JDK running Gradle may be newer; that does not change this contract.
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
+dependencies {
+    implementation 'com.google.android.play:app-update:2.1.0'
+    testImplementation 'junit:junit:4.13.2'
+
+    // Android lifecycle tests run on a real emulator so ActivityScenario can
+    // destroy and recreate MainActivity using the platform lifecycle.
+    androidTestImplementation 'androidx.test:core:1.7.0'
+    androidTestImplementation 'androidx.test:runner:1.7.0'
+    androidTestImplementation 'androidx.test:rules:1.7.0'
+    androidTestImplementation 'androidx.test.ext:junit:1.3.0'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0'
+    androidTestImplementation 'androidx.test.espresso:espresso-intents:3.7.0'
+}

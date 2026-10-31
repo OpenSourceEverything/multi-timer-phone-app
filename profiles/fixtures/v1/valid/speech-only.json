@@ -1,0 +1,21 @@
+{
+  "format": "com.ose.multitimer.profiles",
+  "version": 1,
+  "profiles": [
+    {
+      "name": "Elapsed time",
+      "mode": "PERIODIC",
+      "beepDurationMillis": 500,
+      "periodMillis": 60000,
+      "events": [],
+      "beepOnCue": false,
+      "beepOnCompletion": false,
+      "speakOnCompletion": false,
+      "speakCurrentTime": false,
+      "speakElapsedTime": true,
+      "speakRemainingTime": false,
+      "speakOnCue": true,
+      "speakClockNameWithSpeech": false
+    }
+  ]
+}

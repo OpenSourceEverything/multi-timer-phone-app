@@ -1,0 +1,6 @@
+plugins {
+    id 'com.android.application' version '8.10.1' apply false
+    // 2.2.21 supports this project's AGP 8.10.1 and Gradle 8.11.1 pair.
+    // Add Kotlin for new sharing code without migrating the existing timer engine.
+    id 'org.jetbrains.kotlin.android' version '2.2.21' apply false
+}

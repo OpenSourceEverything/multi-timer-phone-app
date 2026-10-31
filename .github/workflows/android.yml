@@ -1,0 +1,227 @@
+name: Android checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      exchange_mode:
+        description: Transport the actual public-example document for the combined check
+        type: boolean
+        default: false
+      require_exchange_input:
+        description: Fail instead of self-round-tripping if the previous job supplied no file
+        type: boolean
+        default: false
+      exchange_input:
+        description: Bounded public-example export from the companion, or empty for Android source
+        type: string
+        default: ''
+    outputs:
+      profile_bundle:
+        description: Actual Android export of the four public examples
+        value: ${{ jobs.debug.outputs.profile_bundle }}
+
+# Fork PRs need no write permission, publishing token or upload key.
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  debug:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      profile_bundle: ${{ steps.exchange.outputs.profile_bundle }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Select JDK 17
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: |
+            build.gradle
+            settings.gradle
+            app/build.gradle
+            gradle/wrapper/gradle-wrapper.properties
+
+      # The hosted image has sdkmanager installed but does not put it on PATH.
+      # Use its stable SDK path directly, then install the API/build tools and
+      # an emulator image for the Activity lifecycle checks below.
+      - name: Ensure Android packages
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$SDKMANAGER" ]]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -mindepth 2 -maxdepth 3 -type f -name sdkmanager -print -quit)"
+          fi
+          if [[ ! -x "$SDKMANAGER" ]]; then
+            echo "sdkmanager was not found under $ANDROID_HOME/cmdline-tools" >&2
+            exit 1
+          fi
+          "$SDKMANAGER" --install \
+            'platforms;android-36' \
+            'build-tools;35.0.0' \
+            'platform-tools' \
+            'emulator' \
+            'system-images;android-35;google_apis;x86_64'
+
+      # Bash also works when a checkout does not preserve gradlew's executable bit.
+      # This builds a debug APK only; no release keystore is read from CI secrets.
+      - name: Test, lint and build debug APK
+        run: bash gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+
+      # Prevent a debug application ID or prototype launcher from becoming a
+      # second installed app with its own timer/profile data.
+      - name: Verify debug APK uses the main app identity
+        run: bash .github/scripts/verify-debug-app-identity.sh
+
+      # Linux emulators use KVM when the host exposes it. Record the device and
+      # attempt the documented permission setup without hiding device absence.
+      - name: Enable KVM for Android emulator
+        run: |
+          DIAGNOSTICS="$GITHUB_WORKSPACE/app/build/ci-emulator"
+          mkdir -p "$DIAGNOSTICS"
+          {
+            echo '--- Runner identity ---'
+            id
+            echo '--- KVM group ---'
+            getent group kvm || true
+            echo '--- KVM device before permissions ---'
+            ls -l /dev/kvm || true
+            if [[ -c /dev/kvm ]]; then
+              echo '--- Apply documented KVM udev permissions ---'
+              echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+                | sudo tee /etc/udev/rules.d/99-kvm4all.rules || true
+              sudo udevadm control --reload-rules || true
+              sudo udevadm trigger --name-match=kvm || true
+              echo '--- KVM device after permissions ---'
+              ls -l /dev/kvm || true
+              if test -r /dev/kvm && test -w /dev/kvm; then
+                echo 'KVM device is readable and writable.'
+              else
+                echo 'KVM device exists but is not readable and writable.'
+              fi
+            else
+              echo 'KVM character device is not present on this runner.'
+            fi
+          } > "$DIAGNOSTICS/kvm-setup.txt" 2>&1
+          cat "$DIAGNOSTICS/kvm-setup.txt"
+
+      # Instrumentation tests need Android itself. A controlled emulator keeps
+      # the tests isolated from a person's phone and saved timer data.
+      - name: Start Android test emulator
+        timeout-minutes: 15
+        run: |
+          DIAGNOSTICS="$GITHUB_WORKSPACE/app/build/ci-emulator"
+          mkdir -p "$DIAGNOSTICS"
+          echo '--- KVM device ---' > "$DIAGNOSTICS/startup.txt"
+          ls -l /dev/kvm >> "$DIAGNOSTICS/startup.txt" 2>&1 || true
+          echo '--- Emulator acceleration check ---' >> "$DIAGNOSTICS/startup.txt"
+          if ! timeout --kill-after=5s 15s "$ANDROID_HOME/emulator/emulator" -accel-check >> "$DIAGNOSTICS/startup.txt" 2>&1; then
+            cat "$DIAGNOSTICS/startup.txt"
+            exit 1
+          fi
+
+          SDK_TOOLS="$ANDROID_HOME/cmdline-tools/latest/bin"
+          if [[ ! -x "$SDK_TOOLS/avdmanager" ]]; then
+            AVDMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -mindepth 2 -maxdepth 3 -type f -name avdmanager -print -quit)"
+            SDK_TOOLS="${AVDMANAGER%/avdmanager}"
+          fi
+          if [[ ! -x "$SDK_TOOLS/avdmanager" ]]; then
+            echo "avdmanager was not found under $ANDROID_HOME/cmdline-tools" >&2
+            exit 1
+          fi
+          # Creation and lookup must use the same AVD root. Hosted images can
+          # define different SDK/user/emulator homes; a successful creation
+          # command alone did not make multitimer-ci visible to the emulator.
+          export ANDROID_USER_HOME="$RUNNER_TEMP/multitimer-android"
+          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$SDK_TOOLS:$PATH"
+          if ! printf 'no\n' | timeout --kill-after=10s 120s "$SDK_TOOLS/avdmanager" create avd \
+            --force \
+            --name multitimer-ci \
+            --path "$ANDROID_AVD_HOME/multitimer-ci.avd" \
+            --package 'system-images;android-35;google_apis;x86_64' \
+            > "$DIAGNOSTICS/avdmanager.log" 2>&1; then
+            cat "$DIAGNOSTICS/avdmanager.log"
+            exit 1
+          fi
+          "$ANDROID_HOME/emulator/emulator" -list-avds \
+            > "$DIAGNOSTICS/available-avds.txt" 2>&1
+          if ! test -f "$ANDROID_AVD_HOME/multitimer-ci.ini" \
+            || ! grep -Fxq multitimer-ci "$DIAGNOSTICS/available-avds.txt"; then
+            cat "$DIAGNOSTICS/avdmanager.log" "$DIAGNOSTICS/available-avds.txt"
+            echo 'Created AVD is not visible to the emulator; refusing a blind boot wait.' >&2
+            exit 1
+          fi
+          "$ANDROID_HOME/emulator/emulator" \
+            -port 5554 \
+            -avd multitimer-ci \
+            -no-window \
+            -no-audio \
+            -no-boot-anim \
+            -no-snapshot \
+            -gpu swiftshader_indirect \
+            > /tmp/multitimer-emulator.log 2>&1 &
+          if ! timeout --kill-after=10s 300s adb -s emulator-5554 wait-for-device; then
+            # Preserve the startup cause before asking ADB for more evidence.
+            # With no device, logcat also waits: diagnostics need their own
+            # timeout or the outer step dies before emulator.log is retained.
+            cp /tmp/multitimer-emulator.log "$DIAGNOSTICS/emulator.log" || true
+            timeout --kill-after=5s 15s adb -s emulator-5554 logcat -d -t 500 \
+              > "$DIAGNOSTICS/logcat-on-device-timeout.txt" 2>&1 || true
+            cat /tmp/multitimer-emulator.log
+            exit 1
+          fi
+          if ! timeout --kill-after=10s 300s bash -c 'until [[ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" == "1" ]]; do sleep 2; done'; then
+            cp /tmp/multitimer-emulator.log "$DIAGNOSTICS/emulator.log" || true
+            timeout --kill-after=5s 15s adb -s emulator-5554 logcat -d -t 500 \
+              > "$DIAGNOSTICS/logcat-on-boot-timeout.txt" 2>&1 || true
+            cat "$DIAGNOSTICS/logcat-on-boot-timeout.txt"
+            cat /tmp/multitimer-emulator.log
+            exit 1
+          fi
+
+      - name: Run Android lifecycle and file-preservation tests
+        run: bash gradlew --no-daemon connectedDebugAndroidTest
+
+      # A reusable cross-platform check also transports the bytes actually
+      # written by the Activity. The ordinary Android check needs no job output.
+      - name: Export or reimport the public exchange examples
+        if: github.event_name == 'workflow_dispatch' || inputs.exchange_mode
+        id: exchange
+        env:
+          MULTITIMER_EXCHANGE_INPUT_BASE64: ${{ inputs.exchange_input }}
+          MULTITIMER_REQUIRE_EXCHANGE_INPUT: ${{ inputs.require_exchange_input }}
+        run: bash .github/scripts/android-exchange.sh
+
+      # Preserve failure details as well as successful reports. Deliberately do
+      # not upload APKs: a check artifact is not a reviewed distribution release.
+      - name: Retain verification reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          # Called twice in one integration run; artifact names are run-wide.
+          name: android-check-reports-${{ inputs.exchange_mode && (inputs.require_exchange_input && 'reimport' || 'export') || 'debug' }}
+          path: |
+            app/build/reports/tests/testDebugUnitTest/
+            app/build/test-results/testDebugUnitTest/
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/connected/
+            app/build/reports/lint-results-debug.*
+            app/build/ci-emulator/
+          if-no-files-found: warn
+          retention-days: 7

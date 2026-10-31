@@ -1,0 +1,21 @@
+{
+  "format": "com.ose.multitimer.profiles",
+  "version": 1,
+  "profiles": [
+    {
+      "name": "Done",
+      "mode": "SCRIPTED",
+      "beepDurationMillis": 500,
+      "periodMillis": 0,
+      "events": [],
+      "beepOnCue": false,
+      "beepOnCompletion": true,
+      "speakOnCompletion": true,
+      "speakCurrentTime": false,
+      "speakElapsedTime": false,
+      "speakRemainingTime": false,
+      "speakOnCue": true,
+      "speakClockNameWithSpeech": false
+    }
+  ]
+}

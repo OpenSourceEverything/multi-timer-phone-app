@@ -1,0 +1,82 @@
+{
+  "format": "com.ose.multitimer.profiles",
+  "version": 1,
+  "profiles": [
+    {
+      "name": "Every minute – café 🍵",
+      "mode": "PERIODIC",
+      "beepDurationMillis": 500,
+      "periodMillis": 60000,
+      "events": [],
+      "beepOnCue": true,
+      "beepOnCompletion": true,
+      "speakOnCompletion": false,
+      "speakCurrentTime": false,
+      "speakElapsedTime": false,
+      "speakRemainingTime": false,
+      "speakOnCue": true,
+      "speakClockNameWithSpeech": false
+    },
+    {
+      "name": "Exchange example",
+      "mode": "SCRIPTED",
+      "beepDurationMillis": 500,
+      "periodMillis": 0,
+      "events": [
+        {
+          "offsetMillis": 0,
+          "speechText": "Start – تمرين 🍵",
+          "beepDurationMillis": 0
+        },
+        {
+          "offsetMillis": 30000,
+          "speechText": "Rest",
+          "beepDurationMillis": 500
+        },
+        {
+          "offsetMillis": 60000,
+          "speechText": null,
+          "beepDurationMillis": 750
+        }
+      ],
+      "beepOnCue": true,
+      "beepOnCompletion": true,
+      "speakOnCompletion": false,
+      "speakCurrentTime": false,
+      "speakElapsedTime": false,
+      "speakRemainingTime": false,
+      "speakOnCue": true,
+      "speakClockNameWithSpeech": true
+    },
+    {
+      "name": "Done",
+      "mode": "SCRIPTED",
+      "beepDurationMillis": 500,
+      "periodMillis": 0,
+      "events": [],
+      "beepOnCue": false,
+      "beepOnCompletion": true,
+      "speakOnCompletion": true,
+      "speakCurrentTime": false,
+      "speakElapsedTime": false,
+      "speakRemainingTime": false,
+      "speakOnCue": true,
+      "speakClockNameWithSpeech": false
+    },
+    {
+      "name": "Elapsed time",
+      "mode": "PERIODIC",
+      "beepDurationMillis": 500,
+      "periodMillis": 60000,
+      "events": [],
+      "beepOnCue": false,
+      "beepOnCompletion": false,
+      "speakOnCompletion": false,
+      "speakCurrentTime": false,
+      "speakElapsedTime": true,
+      "speakRemainingTime": false,
+      "speakOnCue": true,
+      "speakClockNameWithSpeech": false
+    }
+  ]
+}

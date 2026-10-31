@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Multi Timer</string>
+    <string name="notification_channel_name">Running timers</string>
+    <string name="notification_channel_description">Keeps audible timer profiles running in the background</string>
+    <string name="profile_import_confirm">Import selected (%1$d)</string>
+    <plurals name="profile_imported_count">
+        <item quantity="one">%1$d profile imported.</item>
+        <item quantity="other">%1$d profiles imported.</item>
+    </plurals>
+</resources>

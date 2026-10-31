@@ -1,0 +1,33 @@
+name: Cross-platform file exchange
+
+# The full three-runner workflow is explicit, not a duplicate on every push.
+# It uses the same source commit and existing platform checks for every leg.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: exchange-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-export:
+    if: github.event.repository.private == false
+    uses: ./.github/workflows/android.yml
+    with:
+      exchange_mode: true
+  swiftui-edit-export:
+    needs: android-export
+    uses: ./.github/workflows/ios.yml
+    with:
+      require_exchange_input: true
+      exchange_input: ${{ needs.android-export.outputs.profile_bundle }}
+  android-reimport:
+    needs: swiftui-edit-export
+    uses: ./.github/workflows/android.yml
+    with:
+      exchange_mode: true
+      require_exchange_input: true
+      exchange_input: ${{ needs.swiftui-edit-export.outputs.profile_bundle }}
